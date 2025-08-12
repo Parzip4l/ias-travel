@@ -21,13 +21,15 @@ class CustomResetPassword extends Notification
 
     public function toMail($notifiable)
     {
-        $url = url('/api/reset-password?token=' . $this->token . '&email=' . urlencode($notifiable->email));
+        $url = env('FRONTEND_URL', 'http://127.0.0.1:8001')
+             . '/reset-password?token=' . $this->token
+             . '&email=' . urlencode($notifiable->email);
 
         return (new MailMessage)
             ->subject('Reset Password IAS Travel')
             ->view('emails.reset-pass', [
                 'user' => $notifiable,
-                'url' => $url,
+                'url'  => $url,
             ]);
     }
 }
