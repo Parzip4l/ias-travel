@@ -9,6 +9,7 @@ use App\Http\Middleware\RoleMiddleware;
 use App\Models\User;
 use App\Notifications\CustomVerifyEmail;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Carbon;
 
 /*
 |--------------------------------------------------------------------------
@@ -55,6 +56,7 @@ Route::prefix('auth')->group(function () {
             function ($user, $password) {
                 $user->forceFill([
                     'password' => bcrypt($password),
+                    'email_verified_at' => Carbon::now(),
                 ])->save();
             }
         );
@@ -63,6 +65,11 @@ Route::prefix('auth')->group(function () {
             ? response()->json(['message' => 'Password has been reset.'])
             : response()->json(['message' => 'Invalid token or email.'], 400);
     });
+
+    Route::get('/password/reset/{token}', function ($token) {
+        $email = request()->query('email');
+        return redirect(env('FRONTEND_URL') . "/set-password?token={$token}&email={$email}");
+    })->name('password.reset');
 
     // Protected Auth Routes (JWT required)
     Route::middleware(['auth:api'])->group(function () {
@@ -130,4 +137,6 @@ Route::post('/email/resend', function (Request $request) {
 // Only accessible by admin (JWT + Role Middleware)
 Route::middleware(['auth:api', RoleMiddleware::class . ':admin'])->group(function () {
     Route::get('/user-list', fn () => response()->json(['message' => 'Welcome, admin']));
+
+    
 });

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use App\Services\User\Controllers\UserController;
 use App\Services\User\Controllers\DivisiController;
+use App\Services\Auth\Controllers\AuthController;
 use App\Http\Middleware\RoleMiddleware;
 use App\Models\User;
 use App\Notifications\CustomVerifyEmail;
@@ -25,6 +26,8 @@ Route::prefix('user')->group(function () {
         Route::post('/role-update', [UserController::class, 'updateRole']);
         Route::post('/role-delete', [UserController::class, 'deleteRoles']);
         Route::get('/find-role/{id}', [UserController::class, 'findbyId'])->name('roles.find');
+        // Create User
+        Route::post('/create-user', [AuthController::class, 'registerByAdmin']);
     });
 });
 

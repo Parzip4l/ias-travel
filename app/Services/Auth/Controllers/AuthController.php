@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Password;
 // Event
 use Illuminate\Auth\Events\Registered;
 use App\Notifications\CustomVerifyEmail;
@@ -92,5 +93,35 @@ class AuthController extends Controller
         $user->notify(new CustomVerifyEmail());
 
         return response()->json(['message' => 'User registered successfully. Please verify your email.'], 201);
+    }
+
+    public function registerByAdmin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'role' => 'required|exists:roles,name',
+            'divisi_id' => 'required|exists:divisions,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Buat user dengan password random (tidak digunakan untuk login)
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make(Str::random(12)),
+            'role' => $request->role,
+            'divisi_id' => $request->divisi_id,
+        ]);
+
+        // Kirim link untuk set password (menggunakan fitur reset password)
+        Password::sendResetLink(['email' => $user->email]);
+
+        return response()->json([
+            'message' => 'User created successfully. Link to set password has been sent to email.'
+        ], 201);
     }
 }
