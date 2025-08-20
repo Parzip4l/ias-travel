@@ -30,6 +30,6 @@ class Company extends Model
 
     public function companyType()
     {
-        return $this->belongsTo(companyType::class);
+        return $this->belongsTo(CompanyType::class);
     }
 }
