@@ -16,6 +16,8 @@ use App\Services\User\Controllers\PositionController;
 use App\Services\User\Controllers\CategoriBudget;
 use App\Services\User\Controllers\PositionBudget;
 use App\Services\Auth\Controllers\AuthController;
+use App\Services\Employee\Controllers\EmployeeController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -74,5 +76,16 @@ Route::prefix('budget')->group(function () {
         Route::post('/update', [PositionBudget::class, 'update']);
         Route::post('/delete', [PositionBudget::class, 'delete']);
         Route::get('/single/{id}', [PositionBudget::class, 'findbyId'])->name('kategoriBudget.find');
+    });
+});
+
+// Employee
+Route::prefix('karyawan')->group(function () {
+    Route::middleware(['auth:api', RoleMiddleware::class . ':admin'])->group(function () {
+        Route::get('/list', [EmployeeController::class, 'index']);
+        Route::post('/store', [EmployeeController::class, 'store']);
+        Route::post('/update', [EmployeeController::class, 'update']);
+        Route::post('/delete', [EmployeeController::class, 'delete']);
+        Route::get('/single/{id}', [EmployeeController::class, 'findbyId'])->name('employee.find');
     });
 });
