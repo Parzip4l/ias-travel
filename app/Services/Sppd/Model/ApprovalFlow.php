@@ -14,7 +14,7 @@ class ApprovalFlow extends Model
 
     protected $table = 'approval_flows';
     protected $fillable = [
-        'company_id', 'name', 'is_active','requester_position_id'
+        'company_id', 'name', 'is_active','requester_position_id','approval_type'
     ];
 
     public function company()
@@ -25,5 +25,36 @@ class ApprovalFlow extends Model
     public function requesterPosition()
     {
         return $this->belongsTo(Position::class, 'requester_position_id', 'id');
+    }
+
+    public function steps()
+    {
+        return $this->hasMany(ApprovalStep::class, 'approval_flow_id');
+    }
+
+    public function amountFlows()
+    {
+        return $this->hasMany(ApprovalAmountFlow::class, 'approval_flow_id');
+    }
+
+    public function getApprovalSteps($requesterPositionId, $amount)
+    {
+        if ($this->approval_type === 'hierarchy') {
+            return $this->steps()->where('requester_position_id', $requesterPositionId)->get();
+        }
+
+        if ($this->approval_type === 'amount') {
+            $flow = $this->amountFlows()
+                         ->where('min_amount', '<=', $amount)
+                         ->where(function ($q) use ($amount) {
+                             $q->where('max_amount', '>=', $amount)
+                               ->orWhereNull('max_amount');
+                         })
+                         ->first();
+
+            return $flow ? $flow->steps : collect([]);
+        }
+
+        return collect([]);
     }
 }

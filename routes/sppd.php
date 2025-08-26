@@ -16,6 +16,8 @@ use App\Services\Auth\Controllers\AuthController;
 use App\Services\Sppd\Controllers\SppdController;
 use App\Services\Sppd\Controllers\ApprovalController;
 use App\Services\Sppd\Controllers\ApprovalStepController;
+use App\Services\Sppd\Controllers\ApprovalAmountC;
+use App\Services\Sppd\Controllers\ApprovalAmountStepController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,6 +51,24 @@ Route::prefix('approval')->group(function () {
             Route::post('/final-step/{id}', [ApprovalStepController::class, 'toggleFinal'])->name('single.final');
             Route::get('/all-step/{flowid}', [ApprovalStepController::class, 'findByIdFlow'])->name('steps.all');
         });
+    });
+
+    Route::prefix('amount-flow')->group(function () {
+        Route::get('/list', [ApprovalAmountC::class, 'index']);
+        Route::post('/store', [ApprovalAmountC::class, 'store']);
+        Route::post('/update/{id}', [ApprovalAmountC::class, 'update']);
+        Route::post('/delete/{id}', [ApprovalAmountC::class, 'destroy']);
+        Route::get('/single/{id}', [ApprovalAmountC::class, 'show'])->name('single.flow');
+        Route::get('/by-flow/{idflow}', [ApprovalAmountC::class, 'byIdFlow']);
+    });
+
+    Route::prefix('amount-step')->group(function () {
+        Route::get('/list', [ApprovalAmountStepController::class, 'index']);
+        Route::post('/store', [ApprovalAmountStepController::class, 'store']);
+        Route::post('/update/{id}', [ApprovalAmountStepController::class, 'update']);
+        Route::post('/delete/{id}', [ApprovalAmountStepController::class, 'destroy']);
+        Route::get('/single/{id}', [ApprovalAmountStepController::class, 'show'])->name('single.flow');
+        Route::get('/by-flow/{idflow}', [ApprovalAmountStepController::class, 'byIdFlow']);
     });
     
 });

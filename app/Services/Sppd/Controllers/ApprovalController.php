@@ -48,6 +48,8 @@ class ApprovalController extends Controller
             'company_id'        => 'required|string|max:50|exists:companies,id',
             'name'              => 'required|string',
             'is_active'         => 'required',
+            'requester_position_id' => 'required',
+            'approval_type'         => 'required',
         ]);
 
         if ($validator->fails()) {
@@ -89,6 +91,9 @@ class ApprovalController extends Controller
             'company_id'        => 'required|string|max:50|exists:companies,id',
             'name'              => 'required|string',
             'is_active'         => 'required',
+            'requester_position_id' => 'required',
+            'approval_type'         => 'required',
+            'id'                     => 'required',
         ]);
 
         if ($validator->fails()) {
