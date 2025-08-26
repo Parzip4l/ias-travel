@@ -9,6 +9,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 // Event
 use Illuminate\Auth\Events\Registered;
@@ -21,6 +22,10 @@ use App\Services\Company\Model\Company;
 use App\Services\User\Model\Departement;
 use App\Services\User\Model\Position;
 use App\Services\Employee\Model\Employee;
+
+// Export Impot
+use App\Services\Employee\Exports\CompanyExport;
+use App\Services\Employee\Imports\EmployeeImport;
 
 class EmployeeController extends Controller
 {
@@ -58,6 +63,16 @@ class EmployeeController extends Controller
             'end_date'          => 'nullable|date|after_or_equal:join_date',
             'employment_status' => 'required|string|in:permanent,contract,intern,probation',
             'grade_level'       => 'nullable|string|max:20',
+
+            'gender'            => 'nullable|in:male,female,other',
+            'date_of_birth'     => 'nullable|date|before:today',
+            'place_of_birth'    => 'nullable|string|max:100',
+            'marital_status'    => 'nullable|in:single,married,divorced,widowed',
+            'national_id'       => 'nullable|digits:16', // KTP Indonesia = 16 digit
+            'tax_number'        => 'nullable|numeric',
+            'phone_number'      => 'nullable|numeric',
+            'address'           => 'nullable|string|max:255',
+            'kontak_darurat'    => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -117,6 +132,16 @@ class EmployeeController extends Controller
             'end_date'          => 'nullable|date|after_or_equal:join_date',
             'employment_status' => 'required|string|in:permanent,contract,intern,probation',
             'grade_level'       => 'nullable|string|max:20',
+
+            'gender'            => 'nullable|in:male,female,other',
+            'date_of_birth'     => 'nullable|date|before:today',
+            'place_of_birth'    => 'nullable|string|max:100',
+            'marital_status'    => 'nullable|in:single,married,divorced,widowed',
+            'national_id'       => 'nullable|digits:16',
+            'tax_number'        => 'nullable|numeric',
+            'phone_number'      => 'nullable|numeric',
+            'address'           => 'nullable|string|max:255',
+            'kontak_darurat'    => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -195,6 +220,25 @@ class EmployeeController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal menghapus data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:2048',
+        ]);
+
+        try {
+            Excel::import(new EmployeeImport, $request->file('file'));
+
+            return response()->json([
+                'message' => 'Data berhasil diimport',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal import: ' . $e->getMessage(),
             ], 500);
         }
     }

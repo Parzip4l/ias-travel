@@ -120,4 +120,6 @@ class SppdController extends Controller
         $sppd->delete();
         return response()->json(['message' => 'SPPD berhasil dihapus']);
     }
+
+    
 }

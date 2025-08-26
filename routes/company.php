@@ -32,5 +32,9 @@ Route::prefix('company')->group(function () {
         Route::post('/update', [CompanyController::class, 'update']);
         Route::post('/delete', [CompanyController::class, 'delete']);
         Route::get('/single/{id}', [CompanyController::class, 'findbyId'])->name('single.company');
+
+        Route::get('/export-template', [CompanyController::class, 'exportTemplate']);
+        Route::get('/export-data', [CompanyController::class, 'exportData']);
+        Route::post('/import', [CompanyController::class, 'import']);
     });
 });

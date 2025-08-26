@@ -9,6 +9,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 
 // Event
 use Illuminate\Auth\Events\Registered;
@@ -18,6 +19,12 @@ use App\Notifications\CustomVerifyEmail;
 use App\Models\User;
 use App\Services\Company\Model\CompanyType;
 use App\Services\Company\Model\Company;
+
+// Import Export
+
+use App\Services\Company\Exports\CompanyTemplateExport;
+use App\Services\Company\Exports\CompanyExport;
+use App\Services\Company\Imports\CompanyImport;
 
 class CompanyController extends Controller
 {
@@ -235,6 +242,36 @@ class CompanyController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal menghapus data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function exportData()
+    {
+        return Excel::download(new CompanyExport, 'companies.xlsx');
+    }
+
+    public function exportTemplate()
+    {
+        $types = CompanyType::all(['id', 'name']);
+        return Excel::download(new CompanyTemplateExport($types), 'template_company_import.xlsx');
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:2048',
+        ]);
+
+        try {
+            Excel::import(new CompanyImport, $request->file('file'));
+
+            return response()->json([
+                'message' => 'Data Company berhasil diimport',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal import: ' . $e->getMessage(),
             ], 500);
         }
     }
