@@ -35,7 +35,7 @@ class DivisiController extends Controller
             ], 401);
 
         $data = Departement::all();
-
+        $data->load(['company']);
         return response()->json([
             'data' => $data,
         ]);
@@ -47,6 +47,7 @@ class DivisiController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:55|unique:divisions,name',
             'head_id' => 'required|string|max:15|exists:users,id',
+            'company_id' => 'required|string|max:15|exists:companies,id',
         ]);
 
         if ($validator->fails()) {
@@ -69,6 +70,7 @@ class DivisiController extends Controller
             $divisi = Departement::create([
                 'name' => $request->name,
                 'head_id' => $request->head_id,
+                'company_id' => $request->company_id
             ]);
 
             return response()->json([
@@ -95,6 +97,7 @@ class DivisiController extends Controller
                 Rule::unique('divisions', 'name')->ignore($request->id)
             ],
             'head_id' => 'required|string|max:15|exists:users,id',
+            'company_id' => 'required|string|max:15|exists:companies,id',
         ]);
         
         if ($validator->fails()) {
@@ -119,6 +122,7 @@ class DivisiController extends Controller
             // Update data
             $divisi->name = $request->name;
             $divisi->head_id = $request->head_id;
+            $divisi->company_id = $request->company_id;
             $divisi->save();
 
             return response()->json([

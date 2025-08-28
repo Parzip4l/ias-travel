@@ -35,7 +35,7 @@ class PositionController extends Controller
             ], 401);
 
         $data = Position::all();
-
+        $data->load(['company']);
         return response()->json([
             'data' => $data,
         ]);
@@ -46,6 +46,7 @@ class PositionController extends Controller
         // Validasi input
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:55|unique:positions,name',
+            'company_id' => 'required|string|max:15|exists:companies,id',
         ]);
 
         if ($validator->fails()) {
@@ -66,7 +67,8 @@ class PositionController extends Controller
         try {
             // Simpan role baru
             $jabatan = Position::create([
-                'name' => $request->name
+                'name' => $request->name,
+                'company_id' => $request->company_id
             ]);
 
             return response()->json([
@@ -91,7 +93,8 @@ class PositionController extends Controller
                 'string',
                 'max:15',
                 Rule::unique('positions', 'name')->ignore($request->id)
-            ]
+            ],
+            'company_id' => 'required|string|max:15|exists:companies,id',
         ]);
         
         if ($validator->fails()) {
@@ -115,6 +118,7 @@ class PositionController extends Controller
 
             // Update data
             $jabatan->name = $request->name;
+            $jabatan->company_id = $request->company_id;
             $jabatan->save();
 
             return response()->json([

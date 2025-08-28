@@ -195,6 +195,25 @@ class EmployeeController extends Controller
         }
     }
 
+    public function byUserid($id)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized.'], 401);
+        }
+
+        try {
+            $employee = Employee::where('user_id',$id)->first();
+            $employee->load(['company','user','division','position']);
+            return response()->json([
+                'message' => 'Data ditemukan',
+                'data' => $employee,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Data tidak ditemukan: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function delete(Request $request)
     {
         $validated = $request->validate([

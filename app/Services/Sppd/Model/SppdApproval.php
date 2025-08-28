@@ -4,6 +4,7 @@ namespace App\Services\Sppd\Model;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class SppdApproval extends Model
 {

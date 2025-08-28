@@ -87,6 +87,7 @@ Route::prefix('karyawan')->group(function () {
         Route::post('/update', [EmployeeController::class, 'update']);
         Route::post('/delete', [EmployeeController::class, 'delete']);
         Route::get('/single/{id}', [EmployeeController::class, 'findbyId'])->name('employee.find');
+        Route::get('/details/{id}', [EmployeeController::class, 'byUserid'])->name('employee.user');
         Route::post('/import', [EmployeeController::class, 'import']);
     });
 });

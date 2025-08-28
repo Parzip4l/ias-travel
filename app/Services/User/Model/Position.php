@@ -3,6 +3,9 @@
 namespace App\Services\User\Model;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+use App\Services\Company\Model\Company;
 
 class Position extends Model
 {
@@ -10,10 +13,16 @@ class Position extends Model
     protected $table = "positions";
     protected $fillable = [
         'name',
+        'company_id'
     ];
 
-     public function budgets()
+    public function budgets()
     {
         return $this->hasMany(PositionsBudget::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 }
