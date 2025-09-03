@@ -14,7 +14,6 @@ class CompanyExport implements FromCollection, WithHeadings
             ->get()
             ->map(function ($company) {
                 return [
-                    'id'             => $company->id,
                     'name'           => $company->name,
                     'customer_id'    => $company->customer_id,
                     'email'          => $company->email,
@@ -24,9 +23,6 @@ class CompanyExport implements FromCollection, WithHeadings
                     'zipcode'        => $company->zipcode,
                     'is_pkp'         => $company->is_pkp ? 'Yes' : 'No',
                     'npwp_number'    => $company->npwp_number,
-                    'is_active'      => $company->is_active ? 'Active' : 'Inactive',
-                    'created_at'     => $company->created_at,
-                    'updated_at'     => $company->updated_at,
                 ];
             });
     }
@@ -34,7 +30,6 @@ class CompanyExport implements FromCollection, WithHeadings
     public function headings(): array
     {
         return [
-            'ID',
             'Name',
             'Customer ID',
             'Email',
@@ -44,9 +39,6 @@ class CompanyExport implements FromCollection, WithHeadings
             'Zipcode',
             'Is PKP',
             'NPWP Number',
-            'Is Active',
-            'Created At',
-            'Updated At',
         ];
     }
 }

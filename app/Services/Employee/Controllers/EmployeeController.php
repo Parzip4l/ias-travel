@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
+use Vinkla\Hashids\Facades\Hashids;
 
 // Event
 use Illuminate\Auth\Events\Registered;
@@ -176,8 +177,14 @@ class EmployeeController extends Controller
     }
 
 
-    public function findbyId($id)
+    public function findbyId($hash)
     {
+        $id = Hashids::decode($hash);
+        if (empty($id)) {
+            return response()->json(['message' => 'Invalid ID.'], 400);
+        }
+        $id = $id[0];
+
         $user = auth()->user();
         if (!$user) {
             return response()->json(['message' => 'Unauthorized.'], 401);
@@ -217,19 +224,25 @@ class EmployeeController extends Controller
     public function delete(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'required|integer|exists:employees,id',
+            'id' => 'required|string',
         ]);
         
-        // Cek autentikasi user
         $user = Auth::user();
         if (!$user) {
             return response()->json([
                 'message' => 'Unauthorized.'
             ], 401);
         }
+
+        $id = dhid($validated['id']);
+        if (!$id) {
+            return response()->json([
+                'message' => 'Invalid ID.'
+            ], 400);
+        }
         
         try {
-            $employee = Employee::findOrFail($validated['id']);
+            $employee = Employee::findOrFail($id);
             $employee->delete();
 
             return response()->json([
@@ -242,6 +255,7 @@ class EmployeeController extends Controller
             ], 500);
         }
     }
+
 
     public function import(Request $request)
     {

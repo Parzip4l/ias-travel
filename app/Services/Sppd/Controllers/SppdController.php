@@ -10,6 +10,10 @@ use App\Services\Sppd\Model\SppdApproval;
 use App\Services\Sppd\Model\SppdFile;
 use App\Services\Sppd\Model\SppdHistory;
 use App\Services\Sppd\Model\SppdExpense;
+use Vinkla\Hashids\Facades\Hashids;
+use Illuminate\Support\Facades\Auth;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Validator;
 
 use App\Services\Employee\Model\Employee;
 use Illuminate\Support\Facades\DB;
@@ -36,21 +40,49 @@ class SppdController extends Controller
         ], 200);
     }
 
-    public function show($id)
+    public function needApproval()
     {
         if (!auth()->check()) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $sppd = Sppd::with(['user','approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
+        $user = auth()->user();
 
-        // Cek kalau user bukan admin, hanya boleh lihat miliknya
-        if (!auth()->user()->hasRole('admin') && $sppd->user_id !== auth()->id()) {
-            return response()->json(['message' => 'Forbidden'], 403);
+        // Ambil SPPD yang ada di approval list untuk user login
+        $sppds = Sppd::whereHas('approvals', function ($q) use ($user) {
+                $q->where('approver_id', $user->id)
+                ->where('status', 'Pending');
+            })
+            ->with(['approvals', 'files', 'histories', 'expenses'])
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'data' => $sppds,
+        ], 200);
+    }
+
+    public function show($hash)
+    {
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
+        
+        $id = Hashids::decode($hash);
+        if (empty($id)) {
+            return response()->json(['message' => 'Invalid ID.'], 400);
+        }
+        $id = $id[0];
+        $sppd = Sppd::with(['user','approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
+        $history = SppdHistory::with('user')->where('sppd_id', $id)->get();
+        $approval = SppdApproval::where('sppd_id', $id)->get();
+        $expense = SppdExpense::where('sppd_id', $id)->get();
 
         return response()->json([
             'data' => $sppd,
+            'history' => $history,
+            'approval' => $approval,
+            'expense' => $expense,
         ], 200);
     }
 
@@ -67,6 +99,7 @@ class SppdController extends Controller
             'lokasi_tujuan' => 'required|string',
             'tanggal_berangkat' => 'required|date',
             'tanggal_pulang' => 'required|date|after_or_equal:tanggal_berangkat',
+            'keperluan' => 'required',
             'transportasi' => 'nullable|string',
             'biaya_estimasi' => 'nullable|numeric',
             'files' => 'nullable|array',
@@ -75,9 +108,12 @@ class SppdController extends Controller
 
         $user = auth()->user();
         $employee = Employee::where('user_id',$request->userid)->with('position', 'company')->first();
+        
+        
         if (!$employee) {
             return response()->json(['message' => 'Employee data not found'], 404);
         }
+        
         DB::transaction(function() use ($request, &$sppd, $employee) {
 
             $companyCode = strtoupper($employee->company->id ?? 'XXX');
@@ -106,15 +142,15 @@ class SppdController extends Controller
                 'tanggal_pulang' => $request->tanggal_pulang,
                 'transportasi' => $request->transportasi,
                 'biaya_estimasi' => $request->biaya_estimasi,
-                'status' => 'Pending'
+                'status' => 'Pending',
+                'keperluan' => $request->keperluan,
             ]);
-
+            
             // 2. Cari Approval Flow berdasarkan company + position
             $flow = \App\Services\Sppd\Model\ApprovalFlow::where('company_id', $employee->company_id)
                 ->where('requester_position_id', $employee->position_id)
                 ->where('is_active', 1)
                 ->first();
-           
             if ($flow) {
                 $steps = $flow->getApprovalSteps($employee->position_id ?? 0, $request->biaya_estimasi ?? 0);
                 foreach ($steps as $step) {
@@ -195,11 +231,129 @@ class SppdController extends Controller
         return response()->json(['message' => 'SPPD berhasil diupdate', 'sppd' => $sppd]);
     }
 
-    public function destroy($id)
+    public function destroy(Request $request)
     {
+        $validated = $request->validate([
+            'id' => 'required|string',
+        ]);
+        
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthorized.'
+            ], 401);
+        }
+
+        $id = dhid($validated['id']);
+        if (!$id) {
+            return response()->json([
+                'message' => 'Invalid ID.'
+            ], 400);
+        }
+
         $sppd = Sppd::findOrFail($id);
         $sppd->delete();
         return response()->json(['message' => 'SPPD berhasil dihapus']);
+    }
+
+    public function updateApprovalStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'approval_id' => 'required|exists:sppd_approvals,id',
+            'status'      => 'required|in:Approved,Rejected',
+            'catatan'     => 'nullable|string|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $approval = SppdApproval::with('sppd')->findOrFail($request->approval_id);
+            $sppd     = $approval->sppd;
+            $user     = auth()->user();
+
+            if ($approval->status !== 'Pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Approval sudah diproses sebelumnya'
+                ], 400);
+            }
+
+            // simpan status awal untuk history
+            $statusAwal = $approval->status;
+
+            // Update approval step
+            $approval->update([
+                'status'      => $request->status,
+                'catatan'     => $request->catatan,
+                'approved_at' => now(),
+            ]);
+
+            // Jika Rejected → skip semua approval berikutnya
+            if ($request->status === 'Rejected') {
+                SppdApproval::where('sppd_id', $approval->sppd_id)
+                    ->where('id', '>', $approval->id)
+                    ->update(['status' => 'Skipped']);
+
+                // update status sppd ke Rejected
+                $sppd->update(['status' => 'Rejected']);
+            }
+
+            // Jika semua approver sudah Approved → update status sppd ke Approved
+            if ($request->status === 'Approved') {
+                $pendingCount = SppdApproval::where('sppd_id', $sppd->id)
+                    ->where('status', 'Pending')
+                    ->count();
+
+                if ($pendingCount === 0) {
+                    $sppd->update(['status' => 'Approved']);
+                }
+            }
+
+            // Catat ke history
+            SppdHistory::create([
+                'sppd_id'     => $sppd->id,
+                'user_id'     => $user->id,
+                'status_awal' => $statusAwal,
+                'status_akhir'=> $request->status,
+                'catatan'     => $request->catatan ?? null
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status approval berhasil diupdate',
+                'data'    => $approval
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function getApprovalStatus($sppdId)
+    {
+        $approvals = SppdApproval::where('sppd_id', $sppdId)
+            ->orderBy('id')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'data' => $approvals
+        ]);
     }
 
     

@@ -28,8 +28,13 @@ use App\Services\Sppd\Controllers\ApprovalAmountStepController;
 Route::prefix('sppd')->group(function () {
     Route::get('/list', [SppdController::class, 'index']);
     Route::post('/store', [SppdController::class, 'store']);
-    Route::get('/details/{id}', [SppdController::class, 'show']);
+    Route::post('/delete', [SppdController::class, 'destroy']);
+    Route::get('/details/{hash}', [SppdController::class, 'show']);
+    Route::post('/update-status', [SppdController::class, 'updateApprovalStatus']);
+    Route::get('/status/{sppdId}', [SppdController::class, 'getApprovalStatus']);
+    Route::get('/need-approval', [SppdController::class, 'needApproval']);
 });
+
 
 Route::prefix('approval')->group(function () {
     Route::prefix('flow')->group(function () {

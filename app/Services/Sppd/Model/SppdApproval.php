@@ -23,4 +23,5 @@ class SppdApproval extends Model
     {
         return $this->belongsTo(User::class, 'approver_id');
     }
+    
 }

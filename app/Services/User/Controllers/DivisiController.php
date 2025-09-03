@@ -159,7 +159,7 @@ class DivisiController extends Controller
     public function delete(Request $request)
     {
         $validated = $request->validate([
-            'id' => 'required|integer|exists:divisions,id',
+            'id' => 'required|string',
         ]);
         
         // Cek autentikasi user
@@ -170,8 +170,15 @@ class DivisiController extends Controller
             ], 401);
         }
 
+        $id = dhid($validated['id']);
+        if (!$id) {
+            return response()->json([
+                'message' => 'Invalid ID.'
+            ], 400);
+        }
+
         try {
-            $divisi = Departement::findOrFail($validated['id']);
+            $divisi = Departement::findOrFail($id);
             $divisi->delete();
 
             return response()->json([

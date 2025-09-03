@@ -13,7 +13,7 @@ class Sppd extends Model
     protected $fillable = [
         'nomor_sppd', 'user_id', 'tujuan', 'lokasi_tujuan', 
         'tanggal_berangkat', 'tanggal_pulang', 'transportasi', 
-        'biaya_estimasi', 'biaya_realisasi', 'status'
+        'biaya_estimasi', 'biaya_realisasi', 'status','keperluan'
     ];
 
     public function user()
