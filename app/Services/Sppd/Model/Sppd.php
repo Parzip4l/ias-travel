@@ -5,6 +5,7 @@ namespace App\Services\Sppd\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
+use App\Services\Payment\Model\Payment;
 
 class Sppd extends Model
 {
@@ -39,5 +40,10 @@ class Sppd extends Model
     public function expenses()
     {
         return $this->hasMany(SppdExpense::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'sppd_id');
     }
 }

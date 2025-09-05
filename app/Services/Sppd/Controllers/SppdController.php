@@ -10,6 +10,7 @@ use App\Services\Sppd\Model\SppdApproval;
 use App\Services\Sppd\Model\SppdFile;
 use App\Services\Sppd\Model\SppdHistory;
 use App\Services\Sppd\Model\SppdExpense;
+use App\Services\Payment\Model\Payment;
 use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -73,16 +74,18 @@ class SppdController extends Controller
             return response()->json(['message' => 'Invalid ID.'], 400);
         }
         $id = $id[0];
-        $sppd = Sppd::with(['user','approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
+        $sppd = Sppd::with(['user.employee.position','user.employee.division','approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
         $history = SppdHistory::with('user')->where('sppd_id', $id)->get();
-        $approval = SppdApproval::where('sppd_id', $id)->get();
+        $approval = SppdApproval::with('approver.employee.division', 'approver.employee.position')->where('sppd_id', $id)->get();
         $expense = SppdExpense::where('sppd_id', $id)->get();
+        $payment = Payment::where('sppd_id', $id)->first();
 
         return response()->json([
             'data' => $sppd,
             'history' => $history,
             'approval' => $approval,
             'expense' => $expense,
+            'payment' => $payment,
         ], 200);
     }
 

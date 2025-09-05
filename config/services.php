@@ -28,6 +28,18 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'xendit' => [
+        'secret_key' => env('XENDIT_SECRET_KEY'),
+        'public_key' => env('XENDIT_PUBLIC_KEY'),
+    ],
+
+    'amadeus' => [
+        'base_url' => env('SERVICES_AMADEUS_BASE_URL'),
+        'key'      => env('SERVICES_AMADEUS_KEY'),
+        'secret'   => env('SERVICES_AMADEUS_SECRET'),
+    ],
+
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
