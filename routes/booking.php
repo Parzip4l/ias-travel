@@ -18,3 +18,10 @@ Route::prefix('flights')->group(function () {
 Route::prefix('hotels')->group(function () {
     Route::get('geo', [App\Services\Booking\Controllers\HotelController::class, 'searchByGeo']);
 });
+
+Route::prefix('wilayah')->group(function () {
+    Route::get('/provinces', [App\Services\Booking\Controllers\WilayahController::class, 'provinces']);
+    Route::get('/regencies/{province_id}', [App\Services\Booking\Controllers\WilayahController::class, 'regencies']);
+    Route::get('/districts/{regency_id}', [App\Services\Booking\Controllers\WilayahController::class, 'districts']);
+    Route::get('/villages/{district_id}', [App\Services\Booking\Controllers\WilayahController::class, 'villages']);
+});
