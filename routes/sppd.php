@@ -33,6 +33,7 @@ Route::prefix('sppd')->group(function () {
     Route::post('/update-status', [SppdController::class, 'updateApprovalStatus']);
     Route::get('/status/{sppdId}', [SppdController::class, 'getApprovalStatus']);
     Route::get('/need-approval', [SppdController::class, 'needApproval']);
+    Route::get('/need-payment', [SppdController::class, 'needPayment']);
 });
 
 

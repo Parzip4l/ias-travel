@@ -16,10 +16,17 @@ class PaymentController extends Controller
         $payment = $paymentService->createForSppd(
             $sppd,
             $request->amount ?? 10000,
-            $request->email ?? $sppd->user->email
+            $request->email ?? $sppd->user->email,
+            $request->payment_type ?? 'digital'
         );
 
-        return redirect($payment->invoice_url);
+        if ($payment->payment_type === 'digital') {
+            return redirect($payment->invoice_url);
+        }
+
+        // Kalau reimbursement cukup kembali ke detail SPPD
+        return redirect()->route('sppd.show', $sppd->id)
+            ->with('success', 'Metode pembayaran Reimbursement telah dipilih. Menunggu invoice dari pihak travel.');
     }
 
     public function webhook(Request $request, PaymentService $paymentService)

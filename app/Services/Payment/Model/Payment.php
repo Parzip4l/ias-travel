@@ -22,6 +22,7 @@ class Payment extends Model
         'payer_email',
         'invoice_url',
         'raw_response',
+        'payment_type',
     ];
 
     protected $casts = [

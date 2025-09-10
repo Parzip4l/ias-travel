@@ -80,4 +80,9 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail
     {
         return $this->hasOne(Employee::class, 'user_id', 'id');
     }
+
+    public function division()
+    {
+        return $this->belongsTo(Departement::class, 'divisi_id');
+    }
 }

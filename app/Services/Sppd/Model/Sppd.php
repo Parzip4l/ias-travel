@@ -46,4 +46,9 @@ class Sppd extends Model
     {
         return $this->hasMany(Payment::class, 'sppd_id');
     }
+
+    public function wilayah()
+    {
+        return $this->hasOne(SppdWilayah::class, 'sppd_id');
+    }
 }
