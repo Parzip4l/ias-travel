@@ -34,6 +34,7 @@ Route::prefix('sppd')->group(function () {
     Route::get('/status/{sppdId}', [SppdController::class, 'getApprovalStatus']);
     Route::get('/need-approval', [SppdController::class, 'needApproval']);
     Route::get('/need-payment', [SppdController::class, 'needPayment']);
+    Route::get('/need-reimbursement', [SppdController::class, 'sppdReimbursement']);
 });
 
 

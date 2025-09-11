@@ -45,6 +45,34 @@ class SppdController extends Controller
         ], 200);
     }
 
+    public function sppdReimbursement()
+    {
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $query = Sppd::select('id', 'nomor_sppd','keperluan', 'tanggal_berangkat', 'tanggal_pulang')
+            ->where('status', 'APPROVED')
+            ->whereDate('tanggal_pulang', '<', now())
+            ->where(function ($q) {
+                    $q->whereDoesntHave('reimbursement') // belum pernah klaim
+                ->orWhereHas('reimbursement', function ($qr) {
+                    $qr->where('status', 'REJECTED'); // klaim ditolak -> masih boleh ajukan lagi
+                });
+            });
+
+        if (!auth()->user()->hasRole('admin')) {
+            $query->where('user_id', auth()->id());
+        }
+
+        $sppds = $query->orderByDesc('tanggal_pulang')->get();
+
+        return response()->json([
+            'data' => $sppds,
+        ], 200);
+    }
+
+
     public function needApproval()
     {
         if (!auth()->check()) {
@@ -138,13 +166,6 @@ class SppdController extends Controller
 
     public function store(Request $request)
     {
-
-        Log::info('DEBUG FILE', [
-            'hasFile' => $request->hasFile('surat_tugas'),
-            'isValid' => $request->file('surat_tugas')?->isValid(),
-            'file'    => $request->file('surat_tugas'),
-            'all'     => $request->all(),
-        ]);
         if (!auth()->check()) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }

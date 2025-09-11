@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
 use App\Services\Payment\Model\Payment;
+use App\Services\Reimbursement\Model\Reimbursement;
 
 class Sppd extends Model
 {
@@ -50,5 +51,10 @@ class Sppd extends Model
     public function wilayah()
     {
         return $this->hasOne(SppdWilayah::class, 'sppd_id');
+    }
+
+    public function reimbursement()
+    {
+        return $this->hasMany(Reimbursement::class, 'sppd_id');
     }
 }
