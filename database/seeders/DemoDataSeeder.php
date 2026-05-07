@@ -335,14 +335,20 @@ class DemoDataSeeder extends Seeder
 
     private function assignDivisionHeads(array $divisions, array $users): void
     {
-        $divisions['finance']->head_id = $users['finance']->id;
-        $divisions['finance']->save();
+        DB::table('divisions')->where('id', $divisions['finance']->id)->update([
+            'head_id' => $users['finance']->id,
+            'updated_at' => now(),
+        ]);
 
-        $divisions['operations']->head_id = $users['ops_manager']->id;
-        $divisions['operations']->save();
+        DB::table('divisions')->where('id', $divisions['operations']->id)->update([
+            'head_id' => $users['ops_manager']->id,
+            'updated_at' => now(),
+        ]);
 
-        $divisions['hr']->head_id = $users['superadmin']->id;
-        $divisions['hr']->save();
+        DB::table('divisions')->where('id', $divisions['hr']->id)->update([
+            'head_id' => $users['superadmin']->id,
+            'updated_at' => now(),
+        ]);
     }
 
     private function seedEmployees(array $users, array $companies, array $divisions, array $positions): void
@@ -489,7 +495,7 @@ class DemoDataSeeder extends Seeder
         }
     }
 
-    private function seedSppdRelations(Sppd $sppd, User $requester, array $region, string $status, int $estimatedCost, Carbon $createdAt): void
+    private function seedSppdRelations(Sppd $sppd, object $requester, array $region, string $status, int $estimatedCost, Carbon $createdAt): void
     {
         SppdWilayah::query()->updateOrCreate(
             ['sppd_id' => $sppd->id],
@@ -557,8 +563,8 @@ class DemoDataSeeder extends Seeder
             ])->save();
         }
 
-        $opsManager = User::query()->where('email', 'ops.manager@ias-travel.test')->first();
-        $finance = User::query()->where('email', 'finance@ias-travel.test')->first();
+        $opsManager = DB::table('users')->where('email', 'ops.manager@ias-travel.test')->first();
+        $finance = DB::table('users')->where('email', 'finance@ias-travel.test')->first();
 
         $firstApprovalStatus = $status === 'Rejected' ? 'Rejected' : ($status === 'Pending' ? 'Pending' : 'Approved');
         $secondApprovalStatus = $status === 'Pending' || $status === 'Rejected' ? 'Pending' : 'Approved';
@@ -588,7 +594,7 @@ class DemoDataSeeder extends Seeder
         }
     }
 
-    private function seedPayment(Sppd $sppd, User $requester, string $status, int $estimatedCost, Carbon $createdAt, int $index): void
+    private function seedPayment(Sppd $sppd, object $requester, string $status, int $estimatedCost, Carbon $createdAt, int $index): void
     {
         $paymentStatus = match (true) {
             $status === 'Completed' => 'PAID',
@@ -613,7 +619,7 @@ class DemoDataSeeder extends Seeder
         ])->save();
     }
 
-    private function seedReimbursement(Sppd $sppd, User $requester, array $categories, Carbon $createdAt, int $index): void
+    private function seedReimbursement(Sppd $sppd, object $requester, array $categories, Carbon $createdAt, int $index): void
     {
         $category = $index % 2 === 0 ? $categories['transport'] : $categories['meal'];
         $status = $index % 3 === 0 ? 'PAID' : 'APPROVED';
@@ -633,7 +639,7 @@ class DemoDataSeeder extends Seeder
             'updated_at' => $createdAt->copy()->addDays(4),
         ])->save();
 
-        $finance = User::query()->where('email', 'finance@ias-travel.test')->first();
+        $finance = DB::table('users')->where('email', 'finance@ias-travel.test')->first();
         if ($finance) {
             $approval = ReimbursementApproval::query()->firstOrNew([
                 'reimbursement_id' => $reimbursement->id,
@@ -659,7 +665,7 @@ class DemoDataSeeder extends Seeder
         ])->save();
     }
 
-    private function upsertUser(array $attributes): User
+    private function upsertUser(array $attributes): object
     {
         $now = now()->toDateTimeString();
         $existing = DB::table('users')->where('email', $attributes['email'])->first();
@@ -682,7 +688,13 @@ class DemoDataSeeder extends Seeder
             DB::table('users')->insert($payload);
         }
 
-        return User::query()->where('email', $attributes['email'])->firstOrFail();
+        $user = DB::table('users')->where('email', $attributes['email'])->first();
+
+        if (!$user) {
+            throw new \RuntimeException('Failed to upsert user for email: ' . $attributes['email']);
+        }
+
+        return $user;
     }
 
     private function regionCombos(): array
