@@ -30,6 +30,7 @@ Route::prefix('sppd')->group(function () {
     Route::post('/store', [SppdController::class, 'store']);
     Route::post('/delete', [SppdController::class, 'destroy']);
     Route::get('/details/{hash}', [SppdController::class, 'show']);
+    Route::get('/file/{id}', [SppdController::class, 'showFile']);
     Route::post('/update-status', [SppdController::class, 'updateApprovalStatus']);
     Route::get('/status/{sppdId}', [SppdController::class, 'getApprovalStatus']);
     Route::get('/need-approval', [SppdController::class, 'needApproval']);

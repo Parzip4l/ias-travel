@@ -22,6 +22,7 @@ use Vinkla\Hashids\Facades\Hashids;
 use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 use App\Services\Employee\Model\Employee;
 use Illuminate\Support\Facades\DB;
@@ -166,6 +167,22 @@ class SppdController extends Controller
             'tujuan' => $tujuan,
             'file' => $file,
         ], 200);
+    }
+
+    public function showFile($id)
+    {
+        $file = SppdFile::findOrFail($id);
+
+        if (!Storage::disk('public')->exists($file->file_path)) {
+            abort(404, 'File tidak ditemukan.');
+        }
+
+        $absolutePath = Storage::disk('public')->path($file->file_path);
+
+        return response()->file($absolutePath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($file->file_path) . '"',
+        ]);
     }
 
     public function store(Request $request)
