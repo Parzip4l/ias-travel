@@ -21,7 +21,7 @@ class DashboardController extends Controller
             return response()->json(['message' => 'Unauthorized.'], 401);
         }
 
-        $scopeAllData = in_array($user->role, ['admin', 'finance'], true);
+        $scopeAllData = $this->canViewAllDashboardData($user);
 
         $sppdBaseQuery = Sppd::query();
         if (!$scopeAllData) {
@@ -34,20 +34,12 @@ class DashboardController extends Controller
 
         $summary = [
             'total_sppd_this_month' => (clone $sppdBaseQuery)
-                ->whereBetween('created_at', [$currentMonthStart, now()])
+                ->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$currentMonthStart, now()])
                 ->count(),
-            'in_progress' => (clone $sppdBaseQuery)
-                ->where('status', 'Pending')
-                ->count(),
-            'approved' => (clone $sppdBaseQuery)
-                ->where('status', 'Approved')
-                ->count(),
-            'rejected' => (clone $sppdBaseQuery)
-                ->where('status', 'Rejected')
-                ->count(),
-            'completed' => (clone $sppdBaseQuery)
-                ->where('status', 'Completed')
-                ->count(),
+            'in_progress' => $this->countByStatus((clone $sppdBaseQuery), 'PENDING'),
+            'approved' => $this->countByStatus((clone $sppdBaseQuery), 'APPROVED'),
+            'rejected' => $this->countByStatus((clone $sppdBaseQuery), 'REJECTED'),
+            'completed' => $this->countByStatus((clone $sppdBaseQuery), 'COMPLETED'),
             'total_users' => $scopeAllData
                 ? \App\Models\User::count()
                 : 1,
@@ -55,22 +47,28 @@ class DashboardController extends Controller
 
         $summary['month_over_month'] = [
             'total_sppd_this_month' => $this->percentageChange(
-                (clone $sppdBaseQuery)->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->count(),
+                (clone $sppdBaseQuery)->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$previousMonthStart, $previousMonthEnd])->count(),
                 $summary['total_sppd_this_month']
             ),
             'approved' => $this->percentageChange(
-                (clone $sppdBaseQuery)->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->where('status', 'Approved')->count(),
+                $this->countByStatus(
+                    (clone $sppdBaseQuery)->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$previousMonthStart, $previousMonthEnd]),
+                    'APPROVED'
+                ),
                 $summary['approved']
             ),
             'rejected' => $this->percentageChange(
-                (clone $sppdBaseQuery)->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])->where('status', 'Rejected')->count(),
+                $this->countByStatus(
+                    (clone $sppdBaseQuery)->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$previousMonthStart, $previousMonthEnd]),
+                    'REJECTED'
+                ),
                 $summary['rejected']
             ),
         ];
 
         $monthlySppd = $this->buildMonthlySeries(
             (clone $sppdBaseQuery)
-                ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month_key, COUNT(*) as aggregate")
+                ->selectRaw("DATE_FORMAT(COALESCE(tanggal_berangkat, created_at), '%Y-%m') as month_key, COUNT(*) as aggregate")
                 ->groupBy('month_key')
                 ->orderBy('month_key')
                 ->get(),
@@ -95,9 +93,9 @@ class DashboardController extends Controller
         );
 
         $statusBreakdown = [
-            'Approved' => (clone $sppdBaseQuery)->where('status', 'Approved')->count(),
-            'Pending' => (clone $sppdBaseQuery)->where('status', 'Pending')->count(),
-            'Rejected' => (clone $sppdBaseQuery)->where('status', 'Rejected')->count(),
+            'Approved' => $this->countByStatus((clone $sppdBaseQuery), 'APPROVED'),
+            'Pending' => $this->countByStatus((clone $sppdBaseQuery), 'PENDING'),
+            'Rejected' => $this->countByStatus((clone $sppdBaseQuery), 'REJECTED'),
         ];
 
         $latestSppds = (clone $sppdBaseQuery)
@@ -188,5 +186,27 @@ class DashboardController extends Controller
         }
 
         return round((($current - $previous) / $previous) * 100, 1);
+    }
+
+    private function canViewAllDashboardData(object $user): bool
+    {
+        $role = strtolower((string) ($user->role ?? ''));
+
+        if (in_array($role, ['admin', 'finance', 'superadmin'], true)) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('admin') || $user->hasRole('finance') || $user->hasRole('superadmin');
+        }
+
+        return false;
+    }
+
+    private function countByStatus($query, string $status): int
+    {
+        return (clone $query)
+            ->whereRaw('UPPER(status) = ?', [$status])
+            ->count();
     }
 }
