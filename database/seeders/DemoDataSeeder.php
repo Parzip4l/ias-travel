@@ -662,14 +662,20 @@ class DemoDataSeeder extends Seeder
     private function upsertUser(array $attributes): User
     {
         $user = User::query()->firstOrNew(['email' => $attributes['email']]);
+        $now = now();
+
         $user->forceFill([
             'name' => $attributes['name'],
             'role' => $attributes['role'],
             'password' => Hash::make($attributes['password']),
             'company_id' => $attributes['company_id'] ?? null,
             'divisi_id' => $attributes['divisi_id'] ?? null,
-            'email_verified_at' => now(),
-        ])->save();
+            'email_verified_at' => $now,
+            'created_at' => $user->exists ? $user->getRawOriginal('created_at') ?: $now : $now,
+            'updated_at' => $now,
+        ]);
+
+        $user->save();
 
         return $user;
     }
