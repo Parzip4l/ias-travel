@@ -68,7 +68,8 @@ Route::prefix('auth')->group(function () {
 
     Route::get('/password/reset/{token}', function ($token) {
         $email = request()->query('email');
-        return redirect(env('FRONTEND_URL') . "/set-password?token={$token}&email={$email}");
+        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://127.0.0.1:8001'), '/');
+        return redirect($frontendUrl . "/set-password?token={$token}&email={$email}");
     })->name('password.reset');
 
     // Protected Auth Routes (JWT required)

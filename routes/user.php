@@ -28,6 +28,8 @@ use App\Services\Employee\Controllers\EmployeeController;
 Route::prefix('user')->group(function () {
     Route::middleware(['auth:api', RoleMiddleware::class . ':admin'])->group(function () {
         Route::get('/user-list', [UserController::class, 'index']);
+        Route::get('/find-user/{id}', [UserController::class, 'showUser']);
+        Route::post('/update-user/{id}', [UserController::class, 'updateUser']);
         Route::get('/role-list', [UserController::class, 'role']);
         Route::post('/role-create', [UserController::class, 'storeRole']);
         Route::post('/role-update', [UserController::class, 'updateRole']);

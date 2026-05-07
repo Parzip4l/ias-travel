@@ -36,6 +36,66 @@ class UserController extends Controller
         ]);
     }
 
+    public function showUser($id)
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Unauthorized.'
+            ], 401);
+        }
+
+        try {
+            $data = User::findOrFail($id);
+
+            return response()->json([
+                'message' => 'Data user ditemukan',
+                'data' => $data,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Data user tidak ditemukan: ' . $e->getMessage(),
+            ], 404);
+        }
+    }
+
+    public function updateUser(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $id,
+            'role' => 'required|exists:roles,name',
+            'divisi_id' => 'required|exists:divisions,id',
+        ]);
+
+        $authUser = auth()->user();
+        if (!$authUser) {
+            return response()->json([
+                'message' => 'Unauthorized.'
+            ], 401);
+        }
+
+        try {
+            $user = User::findOrFail($id);
+            $user->update([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'role' => $validated['role'],
+                'divisi_id' => $validated['divisi_id'],
+            ]);
+
+            return response()->json([
+                'message' => 'User berhasil diperbarui',
+                'data' => $user->fresh(),
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal memperbarui user: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function role()
     {
         $user = auth()->user();
