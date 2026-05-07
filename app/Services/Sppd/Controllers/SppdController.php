@@ -12,6 +12,10 @@ use App\Services\Sppd\Model\SppdHistory;
 use App\Services\Sppd\Model\SppdWilayah;
 use App\Services\Sppd\Model\SppdExpense;
 use App\Services\Payment\Model\Payment;
+use App\Services\Booking\Model\Province;
+use App\Services\Booking\Model\Regency;
+use App\Services\Booking\Model\District;
+use App\Services\Booking\Model\Village;
 
 
 use Vinkla\Hashids\Facades\Hashids;
@@ -197,7 +201,33 @@ class SppdController extends Controller
             return response()->json(['message' => 'Employee data not found'], 404);
         }
 
-        DB::transaction(function() use ($request, &$sppd, $employee) {
+        $province = Province::query()->find($request->province_id);
+        $regency = Regency::query()->find($request->regency_id);
+        $district = District::query()->find($request->district_id);
+        $village = Village::query()->find($request->village_id);
+
+        if (!$province || !$regency || !$district || !$village) {
+            return response()->json([
+                'message' => 'Data wilayah tujuan tidak valid atau tidak lengkap.',
+            ], 422);
+        }
+
+        $tujuan = trim((string) ($request->full_address ?? ''));
+        if ($tujuan === '') {
+            $tujuan = implode(', ', array_filter([
+                $village->name ?? null,
+                $district->name ?? null,
+                $regency->name ?? null,
+                $province->name ?? null,
+            ]));
+        }
+
+        $lokasiTujuan = implode(', ', array_filter([
+            $regency->name ?? null,
+            $province->name ?? null,
+        ]));
+
+        DB::transaction(function() use ($request, &$sppd, $employee, $tujuan, $lokasiTujuan) {
 
             $companyCode = strtoupper($employee->company->id ?? 'XXX');
 
@@ -220,8 +250,8 @@ class SppdController extends Controller
             $sppd = Sppd::create([
                 'nomor_sppd'       => $nomorSppd,
                 'user_id'          => $employee->user_id,
-                'tujuan'           => null,
-                'lokasi_tujuan'    => null,
+                'tujuan'           => $tujuan,
+                'lokasi_tujuan'    => $lokasiTujuan,
                 'tanggal_berangkat'=> $request->tanggal_berangkat,
                 'tanggal_pulang'   => $request->tanggal_pulang,
                 'transportasi'     => $request->transportasi,
