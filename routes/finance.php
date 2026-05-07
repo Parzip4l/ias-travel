@@ -8,12 +8,13 @@ use App\Http\Middleware\RoleMiddleware;
 use App\Models\User;
 
 // Controller
+use App\Services\Finance\Controllers\DashboardController;
 use App\Services\Finance\Controllers\FinanceController;
 use Illuminate\Support\Facades\Http;
 
 
 Route::prefix('finance')->group(function () {
     Route::get('index', [FinanceController::class, 'index'])->name('finance.index');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('finance.dashboard');
 });
-
 

@@ -39,12 +39,12 @@ class ApprovalFlow extends Model
 
     public function getApprovalSteps($requesterPositionId, $amount)
     {
-        if ($this->approval_type === 'hirarki') {
+        if (in_array($this->approval_type, ['hirarki', 'hierarchy'], true)) {
             // Ambil semua step berdasarkan approval_flow_id
             return $this->steps()->get();
         }
 
-        if ($this->approval_type === 'nominal') {
+        if (in_array($this->approval_type, ['nominal', 'amount'], true)) {
             $flow = $this->amountFlows()
                         ->where('min_amount', '<=', $amount)
                         ->where(function ($q) use ($amount) {
