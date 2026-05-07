@@ -10,12 +10,17 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\DB;
 // Event
 use Illuminate\Auth\Events\Registered;
 use App\Notifications\CustomVerifyEmail;
 
 // Models
 use App\Models\User;
+use App\Services\Employee\Model\Employee;
+use App\Services\User\Model\Departement;
+use App\Services\User\Model\Position;
+use App\Services\Company\Model\Company;
 
 class AuthController extends Controller
 {
@@ -108,14 +113,53 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // Buat user dengan password random (tidak digunakan untuk login)
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make(Str::random(12)),
-            'role' => $request->role,
-            'divisi_id' => $request->divisi_id,
-        ]);
+        try {
+            $user = DB::transaction(function () use ($request) {
+                $division = Departement::findOrFail($request->divisi_id);
+                $companyId = $division->company_id ?: Company::query()->value('id');
+                $positionId = null;
+
+                if ($companyId) {
+                    $positionId = Position::query()
+                        ->where('company_id', $companyId)
+                        ->value('id');
+                }
+
+                if (!$positionId) {
+                    $positionId = Position::query()->value('id');
+                }
+
+                if (!$companyId) {
+                    throw new \RuntimeException('Company default belum tersedia untuk membuat data karyawan.');
+                }
+
+                // Buat user dengan password random (tidak digunakan untuk login)
+                $user = User::create([
+                    'name' => $request->name,
+                    'email' => $request->email,
+                    'password' => Hash::make(Str::random(12)),
+                    'role' => $request->role,
+                    'divisi_id' => $request->divisi_id,
+                ]);
+
+                Employee::create([
+                    'company_id' => $companyId,
+                    'user_id' => $user->id,
+                    'employee_number' => 'EMP-' . str_pad((string) $user->id, 4, '0', STR_PAD_LEFT),
+                    'name' => $user->name,
+                    'division_id' => $request->divisi_id,
+                    'position_id' => $positionId,
+                    'join_date' => now()->toDateString(),
+                    'employment_status' => 'permanent',
+                ]);
+
+                return $user;
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Gagal membuat user dan karyawan default: ' . $e->getMessage(),
+            ], 500);
+        }
 
         // Kirim link untuk set password (menggunakan fitur reset password)
         Password::sendResetLink(['email' => $user->email]);
