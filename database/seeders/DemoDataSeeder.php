@@ -671,10 +671,6 @@ class DemoDataSeeder extends Seeder
             'email_verified_at' => now(),
         ])->save();
 
-        if ($user->exists) {
-            $user->refresh();
-        }
-
         return $user;
     }
 
