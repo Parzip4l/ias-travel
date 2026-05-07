@@ -661,23 +661,28 @@ class DemoDataSeeder extends Seeder
 
     private function upsertUser(array $attributes): User
     {
-        $user = User::query()->firstOrNew(['email' => $attributes['email']]);
-        $now = now();
+        $now = now()->toDateTimeString();
+        $existing = DB::table('users')->where('email', $attributes['email'])->first();
 
-        $user->forceFill([
+        $payload = [
             'name' => $attributes['name'],
+            'email' => $attributes['email'],
             'role' => $attributes['role'],
             'password' => Hash::make($attributes['password']),
             'company_id' => $attributes['company_id'] ?? null,
             'divisi_id' => $attributes['divisi_id'] ?? null,
             'email_verified_at' => $now,
-            'created_at' => $user->exists ? $user->getRawOriginal('created_at') ?: $now : $now,
             'updated_at' => $now,
-        ]);
+        ];
 
-        $user->save();
+        if ($existing) {
+            DB::table('users')->where('email', $attributes['email'])->update($payload);
+        } else {
+            $payload['created_at'] = $now;
+            DB::table('users')->insert($payload);
+        }
 
-        return $user;
+        return User::query()->where('email', $attributes['email'])->firstOrFail();
     }
 
     private function regionCombos(): array
