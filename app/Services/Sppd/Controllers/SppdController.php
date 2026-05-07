@@ -108,14 +108,23 @@ class SppdController extends Controller
         }
 
         $user = auth()->user();
+        $role = strtolower((string) ($user->role ?? ''));
+        $isFinanceOrManager = in_array($role, ['finance', 'manager'], true)
+            || (method_exists($user, 'hasRole') && ($user->hasRole('finance') || $user->hasRole('manager')));
         $query = Sppd::query()
             ->whereRaw('UPPER(status) = ?', ['APPROVED'])
             ->with(['approvals', 'files', 'histories', 'expenses', 'wilayah', 'user']);
 
         if (!$this->canViewAllSppdData($user)) {
-            $query->whereHas('approvals', function ($approvalQuery) use ($user) {
-                $approvalQuery->where('approver_id', $user->id)
-                    ->whereRaw('UPPER(status) = ?', ['APPROVED']);
+            $query->where(function ($scopeQuery) use ($user, $isFinanceOrManager) {
+                $scopeQuery->where('user_id', $user->id);
+
+                if ($isFinanceOrManager) {
+                    $scopeQuery->orWhereHas('approvals', function ($approvalQuery) use ($user) {
+                        $approvalQuery->where('approver_id', $user->id)
+                            ->whereRaw('UPPER(status) = ?', ['APPROVED']);
+                    });
+                }
             });
         }
 
