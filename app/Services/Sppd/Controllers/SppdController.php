@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Services\Employee\Model\Employee;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class SppdController extends Controller
 {
@@ -125,6 +126,28 @@ class SppdController extends Controller
         ], 200);
     }
 
+    public function completed()
+    {
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $user = auth()->user();
+        $query = Sppd::query()
+            ->whereRaw('UPPER(status) = ?', ['COMPLETED'])
+            ->with(['approvals', 'files', 'histories', 'expenses', 'wilayah', 'user']);
+
+        if (!$this->canViewAllSppdData($user)) {
+            $query->where('user_id', $user->id);
+        }
+
+        $sppds = $query->latest()->get();
+
+        return response()->json([
+            'data' => $sppds,
+        ], 200);
+    }
+
     public function needPayment(Request $request)
     {
         if (!auth()->check()) {
@@ -179,23 +202,19 @@ class SppdController extends Controller
             return response()->json(['message' => 'Invalid ID.'], 400);
         }
         $id = $id[0];
-        $sppd = Sppd::with(['user.employee.position','user.employee.division','approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
-        $history = SppdHistory::with('user')->where('sppd_id', $id)->get();
-        $approval = SppdApproval::with('approver.employee.division', 'approver.employee.position')->where('sppd_id', $id)->get();
-        $expense = SppdExpense::where('sppd_id', $id)->get();
-        $payment = Payment::where('sppd_id', $id)->first();
-        $tujuan = SppdWilayah::with('province','regency','district','village')->where('sppd_id', $id)->get();
-        $file = SppdFile::where('sppd_id', $id)->first();
+        return response()->json($this->buildSppdDetailPayload($id), 200);
+    }
 
-        return response()->json([
-            'data' => $sppd,
-            'history' => $history,
-            'approval' => $approval,
-            'expense' => $expense,
-            'payment' => $payment,
-            'tujuan' => $tujuan,
-            'file' => $file,
-        ], 200);
+    public function publicShow($hash)
+    {
+        $id = Hashids::decode($hash);
+        if (empty($id)) {
+            return response()->json(['message' => 'Invalid ID.'], 400);
+        }
+
+        $id = $id[0];
+
+        return response()->json($this->buildSppdDetailPayload($id), 200);
     }
 
     public function showFile($id)
@@ -211,6 +230,21 @@ class SppdController extends Controller
         return response()->file($absolutePath, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . basename($file->file_path) . '"',
+        ]);
+    }
+
+    public function downloadFile($id)
+    {
+        $file = SppdFile::findOrFail($id);
+
+        if (!Storage::disk('public')->exists($file->file_path)) {
+            abort(404, 'File tidak ditemukan.');
+        }
+
+        $absolutePath = Storage::disk('public')->path($file->file_path);
+
+        return response()->download($absolutePath, basename($file->file_path), [
+            'Content-Type' => 'application/pdf',
         ]);
     }
 
@@ -407,6 +441,60 @@ class SppdController extends Controller
         return response()->json(['message' => 'SPPD berhasil diupdate', 'sppd' => $sppd]);
     }
 
+    public function complete(Request $request)
+    {
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'sppd_id' => 'required|integer|exists:sppds,id',
+        ]);
+
+        $user = auth()->user();
+        $sppd = Sppd::findOrFail($validated['sppd_id']);
+
+        if ((int) $sppd->user_id !== (int) $user->id) {
+            return response()->json([
+                'message' => 'Hanya pemilik SPPD yang dapat menyelesaikan perjalanan ini.',
+            ], 403);
+        }
+
+        if (strtoupper((string) $sppd->status) !== 'APPROVED') {
+            return response()->json([
+                'message' => 'Hanya SPPD berstatus Approved yang dapat diubah menjadi Completed.',
+            ], 422);
+        }
+
+        $tanggalPulang = Carbon::parse($sppd->tanggal_pulang)->startOfDay();
+        if (!now()->startOfDay()->gt($tanggalPulang)) {
+            return response()->json([
+                'message' => 'SPPD hanya bisa diselesaikan setelah melewati tanggal pulang.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($sppd, $user) {
+            $statusAwal = $sppd->status;
+
+            $sppd->update([
+                'status' => 'Completed',
+            ]);
+
+            SppdHistory::create([
+                'sppd_id' => $sppd->id,
+                'user_id' => $user->id,
+                'status_awal' => $statusAwal,
+                'status_akhir' => 'Completed',
+                'catatan' => 'SPPD diselesaikan oleh pemilik perjalanan.',
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Status SPPD berhasil diubah menjadi Completed.',
+            'data' => $sppd->fresh(),
+        ]);
+    }
+
     public function destroy(Request $request)
     {
         $validated = $request->validate([
@@ -545,5 +633,26 @@ class SppdController extends Controller
         }
 
         return false;
+    }
+
+    private function buildSppdDetailPayload(int $id): array
+    {
+        $sppd = Sppd::with(['user.employee.position', 'user.employee.division', 'approvals', 'files', 'histories', 'expenses'])->findOrFail($id);
+        $history = SppdHistory::with('user')->where('sppd_id', $id)->get();
+        $approval = SppdApproval::with('approver.employee.division', 'approver.employee.position')->where('sppd_id', $id)->get();
+        $expense = SppdExpense::where('sppd_id', $id)->get();
+        $payment = Payment::where('sppd_id', $id)->first();
+        $tujuan = SppdWilayah::with('province', 'regency', 'district', 'village')->where('sppd_id', $id)->get();
+        $file = SppdFile::where('sppd_id', $id)->first();
+
+        return [
+            'data' => $sppd,
+            'history' => $history,
+            'approval' => $approval,
+            'expense' => $expense,
+            'payment' => $payment,
+            'tujuan' => $tujuan,
+            'file' => $file,
+        ];
     }
 }

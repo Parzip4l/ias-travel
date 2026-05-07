@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Http;
 
 Route::prefix('payment')->group(function () {
     Route::post('create', [PaymentController::class, 'create'])->name('payment.create');
+    Route::get('invoice/{id}', [PaymentController::class, 'invoice'])->name('payment.invoice');
     Route::post('webhook', [PaymentController::class, 'webhook'])->name('payment.webhook');
 });
-
 
