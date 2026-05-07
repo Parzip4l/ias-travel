@@ -109,12 +109,15 @@ class SppdController extends Controller
         $user = auth()->user();
 
         // Batasi hanya role admin atau finance
-        if (!in_array($user->role, ['admin', 'finance'])) {
+        $canAccessFinance = in_array(strtolower((string) $user->role), ['admin', 'finance', 'superadmin'], true)
+            || (method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('finance') || $user->hasRole('superadmin')));
+
+        if (!$canAccessFinance) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         // Ambil SPPD yang statusnya sudah APPROVED
-        $sppds = Sppd::where('status', 'Approved')
+        $sppds = Sppd::whereRaw('UPPER(status) = ?', ['APPROVED'])
             ->where(function ($query) {
                 $query->whereDoesntHave('payments') // belum ada payment
                     ->orWhereHas('payments', function ($q) {
