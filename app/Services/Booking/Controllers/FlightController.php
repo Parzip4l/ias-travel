@@ -5,6 +5,7 @@ namespace App\Services\Booking\Controllers;
 use App\Http\Controllers\Controller;
 use App\Services\Booking\AmadeusService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class FlightController extends Controller
 {
@@ -17,11 +18,18 @@ class FlightController extends Controller
 
     public function search(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'origin'      => 'required|string|size:3',  // contoh: CGK
             'destination' => 'required|string|size:3',  // contoh: DPS
             'date'        => 'required|date',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         $flights = $this->amadeus->flightSearch(
             $request->origin,

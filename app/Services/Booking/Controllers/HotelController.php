@@ -5,6 +5,7 @@ namespace App\Services\Booking\Controllers;
 use App\Http\Controllers\Controller;
 use App\Services\Booking\AmadeusService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 
 class HotelController extends Controller
 {
@@ -20,7 +21,7 @@ class HotelController extends Controller
      */
     public function searchByGeo(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
             'latitude'  => 'required|numeric',
             'longitude' => 'required|numeric',
             'radius'    => 'nullable|integer|min:1|max:50',
@@ -28,6 +29,13 @@ class HotelController extends Controller
             'checkIn'   => 'nullable|date',
             'checkOut'  => 'nullable|date|after:checkIn',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
 
         // Step 1: cari daftar hotel by geo
         $hotels = $this->amadeus->hotelListByGeo(

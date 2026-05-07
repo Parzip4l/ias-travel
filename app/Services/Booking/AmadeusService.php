@@ -5,7 +5,6 @@ namespace App\Services\Booking;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Str;
 
 class AmadeusService
 {
@@ -76,46 +75,62 @@ class AmadeusService
 
     public function hotelListByGeo(float $latitude, float $longitude, int $radius = 5)
     {
-        $token = $this->getAccessToken();
-
-        $response = Http::withToken($token)
-            ->get($this->baseUrl.'/v1/reference-data/locations/hotels/by-geocode', [
-                'latitude'  => $latitude,
-                'longitude' => $longitude,
-                'radius'    => $radius,
-            ]);
-
-        if ($response->failed()) {
-            throw new \Exception("Gagal ambil daftar hotel by geo: ".$response->body());
+        if ($this->shouldUseDummyFlights()) {
+            return $this->dummyHotelListByGeo($latitude, $longitude, $radius);
         }
 
-        return $response->json();
+        try {
+            $token = $this->getAccessToken();
+
+            $response = Http::withToken($token)
+                ->get($this->baseUrl.'/v1/reference-data/locations/hotels/by-geocode', [
+                    'latitude'  => $latitude,
+                    'longitude' => $longitude,
+                    'radius'    => $radius,
+                ]);
+
+            if ($response->failed()) {
+                return $this->dummyHotelListByGeo($latitude, $longitude, $radius);
+            }
+
+            return $response->json();
+        } catch (\Throwable $th) {
+            return $this->dummyHotelListByGeo($latitude, $longitude, $radius);
+        }
     }
 
     public function hotelOffersByIds(array $hotelIds, int $adults = 1, ?string $checkIn = null, ?string $checkOut = null)
     {
-        $token = $this->getAccessToken();
-
-        $params = [
-            'hotelIds' => implode(',', $hotelIds),
-            'adults'   => $adults,
-        ];
-
-        if ($checkIn) {
-            $params['checkInDate'] = $checkIn;
-        }
-        if ($checkOut) {
-            $params['checkOutDate'] = $checkOut;
+        if ($this->shouldUseDummyFlights()) {
+            return $this->dummyHotelOffersByIds($hotelIds, $adults, $checkIn, $checkOut);
         }
 
-        $response = Http::withToken($token)
-            ->get($this->baseUrl.'/v3/shopping/hotel-offers', $params);
+        try {
+            $token = $this->getAccessToken();
 
-        if ($response->failed()) {
-            throw new \Exception("Gagal ambil offers hotel: ".$response->body());
+            $params = [
+                'hotelIds' => implode(',', $hotelIds),
+                'adults'   => $adults,
+            ];
+
+            if ($checkIn) {
+                $params['checkInDate'] = $checkIn;
+            }
+            if ($checkOut) {
+                $params['checkOutDate'] = $checkOut;
+            }
+
+            $response = Http::withToken($token)
+                ->get($this->baseUrl.'/v3/shopping/hotel-offers', $params);
+
+            if ($response->failed()) {
+                return $this->dummyHotelOffersByIds($hotelIds, $adults, $checkIn, $checkOut);
+            }
+
+            return $response->json();
+        } catch (\Throwable $th) {
+            return $this->dummyHotelOffersByIds($hotelIds, $adults, $checkIn, $checkOut);
         }
-
-        return $response->json();
     }
 
 
@@ -268,5 +283,86 @@ class AmadeusService
         $remainingMinutes = $minutes % 60;
 
         return 'PT' . ($hours > 0 ? $hours . 'H' : '') . ($remainingMinutes > 0 ? $remainingMinutes . 'M' : '0M');
+    }
+
+    private function dummyHotelListByGeo(float $latitude, float $longitude, int $radius = 5): array
+    {
+        $hotels = [
+            ['hotelId' => 'DUMMY-HOTEL-1', 'name' => 'Hotel Nusantara Prime', 'cityCode' => 'JKT'],
+            ['hotelId' => 'DUMMY-HOTEL-2', 'name' => 'Garuda Business Hotel', 'cityCode' => 'JKT'],
+            ['hotelId' => 'DUMMY-HOTEL-3', 'name' => 'Sakura Transit Stay', 'cityCode' => 'BDO'],
+            ['hotelId' => 'DUMMY-HOTEL-4', 'name' => 'Samudra Executive Inn', 'cityCode' => 'SUB'],
+            ['hotelId' => 'DUMMY-HOTEL-5', 'name' => 'Bali Sunset Residence', 'cityCode' => 'DPS'],
+        ];
+
+        return [
+            'meta' => [
+                'dummy' => true,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'radius' => $radius,
+            ],
+            'data' => collect($hotels)->map(function (array $hotel, int $index) use ($latitude, $longitude) {
+                return [
+                    'hotelId' => $hotel['hotelId'],
+                    'name' => $hotel['name'],
+                    'cityCode' => $hotel['cityCode'],
+                    'latitude' => round($latitude + ($index * 0.01), 6),
+                    'longitude' => round($longitude + ($index * 0.01), 6),
+                ];
+            })->all(),
+        ];
+    }
+
+    private function dummyHotelOffersByIds(array $hotelIds, int $adults = 1, ?string $checkIn = null, ?string $checkOut = null): array
+    {
+        $checkInDate = $checkIn ? Carbon::parse($checkIn) : now()->addDay();
+        $checkOutDate = $checkOut ? Carbon::parse($checkOut) : $checkInDate->copy()->addDays(1);
+        $nights = max(1, $checkInDate->diffInDays($checkOutDate));
+
+        $hotelMap = collect($this->dummyHotelListByGeo(-6.2, 106.8, 5)['data'])->keyBy('hotelId');
+
+        return [
+            'meta' => [
+                'dummy' => true,
+                'adults' => $adults,
+                'checkInDate' => $checkInDate->toDateString(),
+                'checkOutDate' => $checkOutDate->toDateString(),
+                'nights' => $nights,
+            ],
+            'data' => collect($hotelIds)->values()->map(function (string $hotelId, int $index) use ($hotelMap, $adults, $nights, $checkInDate, $checkOutDate) {
+                $hotel = $hotelMap->get($hotelId, [
+                    'hotelId' => $hotelId,
+                    'name' => 'Dummy Hotel ' . ($index + 1),
+                    'cityCode' => 'IDN',
+                    'latitude' => -6.2,
+                    'longitude' => 106.8,
+                ]);
+
+                $nightlyRate = 550000 + ($index * 125000) + max(0, ($adults - 1) * 75000);
+                $total = $nightlyRate * $nights;
+
+                return [
+                    'type' => 'hotel-offers',
+                    'hotel' => $hotel,
+                    'available' => true,
+                    'offers' => [[
+                        'id' => 'DUMMY-OFFER-' . ($index + 1),
+                        'checkInDate' => $checkInDate->toDateString(),
+                        'checkOutDate' => $checkOutDate->toDateString(),
+                        'price' => [
+                            'currency' => 'IDR',
+                            'base' => (string) $nightlyRate,
+                            'total' => (string) $total,
+                        ],
+                        'room' => [
+                            'typeEstimated' => [
+                                'category' => $index % 2 === 0 ? 'STANDARD_ROOM' : 'DELUXE_ROOM',
+                            ],
+                        ],
+                    ]],
+                ];
+            })->all(),
+        ];
     }
 }

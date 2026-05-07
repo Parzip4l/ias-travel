@@ -671,7 +671,11 @@ class DemoDataSeeder extends Seeder
             'email_verified_at' => now(),
         ])->save();
 
-        return $user->fresh();
+        if ($user->exists) {
+            $user->refresh();
+        }
+
+        return $user;
     }
 
     private function regionCombos(): array
