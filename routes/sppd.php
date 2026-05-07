@@ -27,6 +27,7 @@ use App\Services\Sppd\Controllers\ApprovalAmountStepController;
 
 Route::prefix('sppd')->group(function () {
     Route::get('/list', [SppdController::class, 'index']);
+    Route::get('/approved', [SppdController::class, 'approved']);
     Route::post('/store', [SppdController::class, 'store']);
     Route::post('/delete', [SppdController::class, 'destroy']);
     Route::get('/details/{hash}', [SppdController::class, 'show']);

@@ -100,6 +100,31 @@ class SppdController extends Controller
         ], 200);
     }
 
+    public function approved()
+    {
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $user = auth()->user();
+        $query = Sppd::query()
+            ->whereRaw('UPPER(status) = ?', ['APPROVED'])
+            ->with(['approvals', 'files', 'histories', 'expenses', 'wilayah', 'user']);
+
+        if (!$this->canViewAllSppdData($user)) {
+            $query->whereHas('approvals', function ($approvalQuery) use ($user) {
+                $approvalQuery->where('approver_id', $user->id)
+                    ->whereRaw('UPPER(status) = ?', ['APPROVED']);
+            });
+        }
+
+        $sppds = $query->latest()->get();
+
+        return response()->json([
+            'data' => $sppds,
+        ], 200);
+    }
+
     public function needPayment(Request $request)
     {
         if (!auth()->check()) {
@@ -108,22 +133,23 @@ class SppdController extends Controller
 
         $user = auth()->user();
 
-        // Batasi hanya role admin atau finance
-        $canAccessFinance = in_array(strtolower((string) $user->role), ['admin', 'finance', 'superadmin'], true)
-            || (method_exists($user, 'hasRole') && ($user->hasRole('admin') || $user->hasRole('finance') || $user->hasRole('superadmin')));
-
-        if (!$canAccessFinance) {
-            return response()->json(['message' => 'Forbidden'], 403);
-        }
-
         // Ambil SPPD yang statusnya sudah APPROVED
-        $sppds = Sppd::whereRaw('UPPER(status) = ?', ['APPROVED'])
+        $query = Sppd::query()->whereRaw('UPPER(status) = ?', ['APPROVED'])
             ->where(function ($query) {
                 $query->whereDoesntHave('payments') // belum ada payment
                     ->orWhereHas('payments', function ($q) {
                         $q->where('status', 'PENDING'); // payment masih pending
                     });
-            })
+            });
+
+        if (!$this->canViewAllSppdData($user)) {
+            $query->whereHas('approvals', function ($approvalQuery) use ($user) {
+                $approvalQuery->where('approver_id', $user->id)
+                    ->whereRaw('UPPER(status) = ?', ['APPROVED']);
+            });
+        }
+
+        $sppds = $query
             ->with([
                 'payments',
                 'approvals',
@@ -506,5 +532,18 @@ class SppdController extends Controller
         ]);
     }
 
-    
+    private function canViewAllSppdData($user): bool
+    {
+        $role = strtolower((string) ($user->role ?? ''));
+
+        if (in_array($role, ['admin', 'superadmin'], true)) {
+            return true;
+        }
+
+        if (method_exists($user, 'hasRole')) {
+            return $user->hasRole('admin') || $user->hasRole('superadmin');
+        }
+
+        return false;
+    }
 }
