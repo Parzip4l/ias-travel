@@ -15,6 +15,5 @@ use Illuminate\Support\Facades\Http;
 
 Route::prefix('finance')->group(function () {
     Route::get('index', [FinanceController::class, 'index'])->name('finance.index');
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('finance.dashboard');
+    Route::middleware('auth:api')->get('dashboard', [DashboardController::class, 'index'])->name('finance.dashboard');
 });
-

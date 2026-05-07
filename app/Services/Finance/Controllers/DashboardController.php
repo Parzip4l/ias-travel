@@ -10,10 +10,11 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $user = auth()->user();
 
@@ -28,20 +29,37 @@ class DashboardController extends Controller
             $sppdBaseQuery->where('user_id', $user->id);
         }
 
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse((string) $request->string('start_date'))->startOfDay()
+            : null;
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse((string) $request->string('end_date'))->endOfDay()
+            : null;
+
+        if ($startDate && $endDate && $startDate->gt($endDate)) {
+            return response()->json([
+                'message' => 'Rentang tanggal tidak valid. Tanggal mulai harus sebelum atau sama dengan tanggal akhir.',
+            ], 422);
+        }
+
+        $sppdFilteredQuery = $this->applyDateRangeFilter(clone $sppdBaseQuery, $startDate, $endDate);
+
         $currentMonthStart = now()->startOfMonth();
         $previousMonthStart = now()->copy()->subMonthNoOverflow()->startOfMonth();
         $previousMonthEnd = $previousMonthStart->copy()->endOfMonth();
 
         $summary = [
-            'total_sppd_this_month' => (clone $sppdBaseQuery)
-                ->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$currentMonthStart, now()])
-                ->count(),
-            'in_progress' => $this->countByStatus((clone $sppdBaseQuery), 'PENDING'),
-            'approved' => $this->countByStatus((clone $sppdBaseQuery), 'APPROVED'),
-            'rejected' => $this->countByStatus((clone $sppdBaseQuery), 'REJECTED'),
-            'completed' => $this->countByStatus((clone $sppdBaseQuery), 'COMPLETED'),
+            'total_sppd_this_month' => $startDate || $endDate
+                ? (clone $sppdFilteredQuery)->count()
+                : (clone $sppdBaseQuery)
+                    ->whereBetween(DB::raw('COALESCE(tanggal_berangkat, created_at)'), [$currentMonthStart, now()])
+                    ->count(),
+            'in_progress' => $this->countByStatus((clone $sppdFilteredQuery), 'PENDING'),
+            'approved' => $this->countByStatus((clone $sppdFilteredQuery), 'APPROVED'),
+            'rejected' => $this->countByStatus((clone $sppdFilteredQuery), 'REJECTED'),
+            'completed' => $this->countByStatus((clone $sppdFilteredQuery), 'COMPLETED'),
             'total_users' => $scopeAllData
-                ? \App\Models\User::count()
+                ? (clone $sppdFilteredQuery)->distinct('user_id')->count('user_id')
                 : 1,
         ];
 
@@ -67,7 +85,7 @@ class DashboardController extends Controller
         ];
 
         $monthlySppd = $this->buildMonthlySeries(
-            (clone $sppdBaseQuery)
+            (clone $sppdFilteredQuery)
                 ->selectRaw("DATE_FORMAT(COALESCE(tanggal_berangkat, created_at), '%Y-%m') as month_key, COUNT(*) as aggregate")
                 ->groupBy('month_key')
                 ->orderBy('month_key')
@@ -83,6 +101,12 @@ class DashboardController extends Controller
                 });
             });
 
+        if ($startDate || $endDate) {
+            $paymentQuery->whereHas('sppd', function ($sppdQuery) use ($startDate, $endDate) {
+                $this->applyDateRangeFilter($sppdQuery, $startDate, $endDate);
+            });
+        }
+
         $monthlySpending = $this->buildMonthlySeries(
             $paymentQuery
                 ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month_key, COALESCE(SUM(amount), 0) as aggregate")
@@ -93,12 +117,12 @@ class DashboardController extends Controller
         );
 
         $statusBreakdown = [
-            'Approved' => $this->countByStatus((clone $sppdBaseQuery), 'APPROVED'),
-            'Pending' => $this->countByStatus((clone $sppdBaseQuery), 'PENDING'),
-            'Rejected' => $this->countByStatus((clone $sppdBaseQuery), 'REJECTED'),
+            'Approved' => $this->countByStatus((clone $sppdFilteredQuery), 'APPROVED'),
+            'Pending' => $this->countByStatus((clone $sppdFilteredQuery), 'PENDING'),
+            'Rejected' => $this->countByStatus((clone $sppdFilteredQuery), 'REJECTED'),
         ];
 
-        $latestSppds = (clone $sppdBaseQuery)
+        $latestSppds = (clone $sppdFilteredQuery)
             ->with(['user', 'payments'])
             ->latest()
             ->limit(5)
@@ -119,9 +143,16 @@ class DashboardController extends Controller
         $topProvincesQuery = SppdWilayah::query()
             ->select('province_id', DB::raw('COUNT(*) as total'))
             ->whereNotNull('province_id')
-            ->when(!$scopeAllData, function ($query) use ($user) {
-                $query->whereHas('sppd', function ($sppdQuery) use ($user) {
-                    $sppdQuery->where('user_id', $user->id);
+            ->when(!$scopeAllData, function ($query) use ($user, $scopeAllData) {
+                $query->whereHas('sppd', function ($sppdQuery) use ($user, $scopeAllData) {
+                    if (!$scopeAllData) {
+                        $sppdQuery->where('user_id', $user->id);
+                    }
+                });
+            })
+            ->when($startDate || $endDate, function ($query) use ($startDate, $endDate) {
+                $query->whereHas('sppd', function ($sppdQuery) use ($startDate, $endDate) {
+                    $this->applyDateRangeFilter($sppdQuery, $startDate, $endDate);
                 });
             })
             ->groupBy('province_id')
@@ -151,6 +182,10 @@ class DashboardController extends Controller
             'meta' => [
                 'generated_at' => now()->toIso8601String(),
                 'scope' => $scopeAllData ? 'all' : 'self',
+                'filters' => [
+                    'start_date' => $startDate?->toDateString(),
+                    'end_date' => $endDate?->toDateString(),
+                ],
             ],
         ]);
     }
@@ -208,5 +243,18 @@ class DashboardController extends Controller
         return (clone $query)
             ->whereRaw('UPPER(status) = ?', [$status])
             ->count();
+    }
+
+    private function applyDateRangeFilter($query, $startDate, $endDate)
+    {
+        if ($startDate) {
+            $query->where(DB::raw('COALESCE(tanggal_berangkat, created_at)'), '>=', $startDate);
+        }
+
+        if ($endDate) {
+            $query->where(DB::raw('COALESCE(tanggal_berangkat, created_at)'), '<=', $endDate);
+        }
+
+        return $query;
     }
 }
